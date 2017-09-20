@@ -93,27 +93,15 @@
         dest: /home/hadoop/.bashrc
         regexp: "export PATH="
         line: "export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
-    - name: Upload hadoop init script
+    - name: Upload hadoop-init.sh
       copy:
-        src: files/init-hadoop.sh
+        src: files/hadoop-init.sh
         dest: /home/hadoop/
         owner: hadoop
         mode: 0744
-#- hosts: NameNode
-#  remote_user: hadoop
-#  vars:
-#    hadoop_paths:
-#      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-#      HADOOP_HOME: /home/hadoop/hadoop-2.7.3
-#      HADOOP_CLASSPATH: /usr/lib/jvm/java-8-openjdk-amd64/lib/tools.jar
-#      PATH: "{{ ansible_env.PATH }}:/home/hadoop/hadoop-2.7.3/bin:/home/hadoop/hadoop-2.7.3/sbin"
-#  tasks:
-#    - name: Format HDFS
-#      environment: "{{ hadoop_paths }}"
-#      command: hadoop namenode -format
-#    - name: Start HDFS
-#      environment: "{{ hadoop_paths }}"
-#      command: start-dfs.sh
-#    - name: Start Yarn
-#      environment: "{{ hadoop_paths }}"
-#      command: start-yarn.sh
+    - name: Upload hadoop-run-job.sh
+      copy:
+        src: files/hadoop-run-job.sh
+        dest: /home/hadoop/
+        owner: hadoop
+        mode: 0744
