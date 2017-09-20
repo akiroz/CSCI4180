@@ -3,8 +3,15 @@ Hadoop Setup and Word Count
 
 ## Prerequisites 
 
+Deploy:
+
 - ssh
 - ansible
+
+Build:
+
+- java
+- gradle
 
 ## Deploy Hadoop
 
@@ -29,22 +36,33 @@ $ ssh -i keys/vm3-hadoop -p 122ZZ hadoop@137.189.89.214
 - Start Hadoop
 
 ```
-hadoop@vm1:~$ ./init-hadoop.sh
+hadoop@vm1:~$ ./hadoop-init.sh
 ```
 
-## Run WordCount on Hadoop
+## Run programs on Hadoop
 
 - Copy data to VM
 
 ```
-$ scp -i keys/vm1-hadoop -P 122XX -r data/ hadoop@137.189.89.214:
+$ scp -i keys/vm1-hadoop -P 122XX -r data/KJV12.TXT hadoop@137.189.89.214:
 ```
 
 - Import data to HDFS
 
 ```
-hadoop@vm1:~$ hadoop fs -mkdir <hdfs dir>
-hadoop@vm1:~$ hadoop fs -put <local file> <hdfs file>
+hadoop@vm1:~$ hadoop fs -mkdir /KJV12
+hadoop@vm1:~$ hadoop fs -put KJV12.TXT /KJV12
 ```
 
+- Compile all programs into an uberjar & upload it to the cluster
 
+```
+$ gradle shadowJar
+$ scp -i keys/vm1-hadoop -P 122XX build/libs/assg1-all.jar hadoop@137.189.89.214:
+```
+
+- Run program
+
+```
+hadoop@vm1:~$ ./hadoop-run-job.sh assg1-all.jar <PROGRAM> <IN DIR> <OUT DIR>
+```
