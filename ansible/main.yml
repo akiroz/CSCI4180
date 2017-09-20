@@ -1,0 +1,8 @@
+- hosts: all
+  tasks:
+    - include: tasks/setup-vm.yml
+    - include: tasks/install-hadoop.yml
+      vars:
+        proxy_env:
+          http_proxy: http://proxy.cse.cuhk.edu.hk:8000
+          https_proxy: http://proxy.cse.cuhk.edu.hk:8000
