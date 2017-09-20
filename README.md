@@ -3,6 +3,7 @@ Hadoop Setup and Word Count
 
 ## Prerequisites 
 
+- ssh
 - ansible
 
 ## Deploy Hadoop
