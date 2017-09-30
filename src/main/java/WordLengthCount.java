@@ -1,6 +1,6 @@
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
@@ -10,32 +10,38 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 
 import java.io.IOException;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.StringTokenizer;
 
+
 public class WordLengthCount {
   public static void main(String[] args) throws Exception {
-    Job job = new Job(new Configuration());
+
+    Configuration conf = new Configuration();
+
+    Job job = new Job(conf);
     job.setJarByClass(WordLengthCount.class);
     job.setJobName("WordLengthCount");
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-    job.setMapperClass(TokenizerMapper.class);
-    job.setCombinerClass(IntSumReducer.class);
-    job.setReducerClass(IntSumReducer.class);
+    job.setMapperClass(MyMapper.class);
+    job.setMapOutputKeyClass(IntWritable.class);
+    job.setMapOutputValueClass(IntWritable.class);
 
-    job.setOutputKeyClass(Text.class);
+    job.setReducerClass(MyReducer.class);
+    job.setOutputKeyClass(IntWritable.class);
     job.setOutputValueClass(IntWritable.class);
 
     System.exit(job.waitForCompletion(true) ? 0 : 1);
   }
 
-  public static class TokenizerMapper
-      extends Mapper<Object, Text, Text, IntWritable>
+  public static class MyMapper
+      extends Mapper<Object, Text, IntWritable, IntWritable>
     {
       public void map
         (
@@ -59,18 +65,18 @@ public class WordLengthCount {
         while(it.hasNext()) {
           Map.Entry<Integer, Integer> entry = it.next();
           context.write(
-              new Text(Integer.toString(entry.getKey())),
+              new IntWritable(entry.getKey()),
               new IntWritable(entry.getValue().intValue()));
         }
       }
     }
 
-  public static class IntSumReducer
-      extends Reducer<Text, IntWritable, Text, IntWritable>
+  public static class MyReducer
+      extends Reducer<IntWritable, IntWritable, IntWritable, IntWritable>
     {
       public void reduce
         (
-         Text key,
+         IntWritable key,
          Iterable<IntWritable> values,
          Context context
         )

@@ -64,5 +64,12 @@ $ scp -i keys/vm1-hadoop -P 122XX build/libs/assg1-all.jar hadoop@137.189.89.214
 - Run program
 
 ```
-hadoop@vm1:~$ ./hadoop-run-job.sh assg1-all.jar <PROGRAM> <IN DIR> <OUT DIR>
+hadoop@vm1:~$ ./hadoop-run-job.sh assg1-all.jar <PROGRAM> <IN DIR> <ARGS...>
 ```
+
+## Helper Script
+
+```
+$ ./compile-and-run.sh <PROGRAM> <IN DIR> <ARGS...>
+```
+
