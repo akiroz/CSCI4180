@@ -46,8 +46,10 @@
       http_proxy: http://proxy.cse.cuhk.edu.hk:8000
       https_proxy: http://proxy.cse.cuhk.edu.hk:8000
   become: true
-  environment: "{{proxy_env}}"
+  #environment: "{{proxy_env}}"
   tasks:
+    - name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules, required by ansible"
+      raw: apt-get install python-minimal aptitude -y
     - name: Add OpenJDK PPA
       apt_repository:
         repo: "ppa:openjdk-r/ppa"
