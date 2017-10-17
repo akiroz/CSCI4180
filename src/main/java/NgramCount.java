@@ -1,4 +1,4 @@
-import org.apache.hadoop.conf.Configuration;
+﻿import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -17,16 +17,21 @@ import java.util.LinkedList;
 import java.util.Iterator;
 import java.util.StringTokenizer;
 
+// Holds string value as associative array outside mapper method
+// Set up global HashMap to store list values
+public class NgramCountNew {
 
-public class NgramCount {
+  // Declare global variable here
+  public static LinkedList<String> list = new LinkedList<String>();
+
   public static void main(String[] args) throws Exception {
 
     Configuration conf = new Configuration();
     conf.setInt("N", Integer.parseInt(args[2]));
 
     Job job = new Job(conf);
-    job.setJarByClass(NgramCount.class);
-    job.setJobName("NgramCount");
+    job.setJarByClass(NgramCountNew.class);
+    job.setJobName("NgramCountNew");
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
@@ -56,10 +61,11 @@ public class NgramCount {
         int N = context.getConfiguration().getInt("N", 2);
         StringTokenizer itr = new StringTokenizer(
             value.toString(),
-            " \t\n\r\f.,></?;:'\"[]{}\\|-=_+()&*%^#$!@`~‘’“”");
-        LinkedList<String> list = new LinkedList<String> ();
+            " \t\r\n\f.,></?;:'\"[]{}\\|-=_+()&*%^#$!@`~‘’“”");
+            // Modified as global list
+        //LinkedList<String> list = new LinkedList<String> ();
         Map<String, Integer> map = new HashMap<String, Integer>();
-        
+
         while (itr.hasMoreTokens()) {
           String token = itr.nextToken();
           list.addLast(token);
