@@ -20,8 +20,10 @@ import java.util.StringTokenizer;
 
 
 public class NgramRF {
-  public static void main(String[] args) throws Exception {
+  // Declare global variable here
+  public static LinkedList<String> list = new LinkedList<String>();
 
+  public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     conf.setInt("N", Integer.parseInt(args[2]));
     conf.setFloat("theta", Float.parseFloat(args[3]));
@@ -59,8 +61,10 @@ public class NgramRF {
         StringTokenizer itr = new StringTokenizer(
             value.toString(),
             " \t\n\r\f.,></?;:'\"[]{}\\|-=_+()&*%^#$!@`~‘’“”");
-        LinkedList<String> list = new LinkedList<String> ();
-        
+        // Use Global var instead
+        //LinkedList<String> list = new LinkedList<String> ();
+
+        // Below is  the pair approach
         while (itr.hasMoreTokens()) {
           list.addLast(itr.nextToken());
           if(list.size() > N) {
@@ -76,6 +80,8 @@ public class NgramRF {
       }
     }
 
+
+  // All key value pairs with the same key goes to the same reducer
   public static class MyReducer
       extends Reducer<Text, Text, Text, FloatWritable>
     {
@@ -88,6 +94,7 @@ public class NgramRF {
         throws IOException, InterruptedException
       {
         float theta = context.getConfiguration().getFloat("theta", 0);
+        // TotalCount for all pairs with the same key
         int totalCount = 0;
         Map<String, Integer> map = new HashMap<String, Integer>();
 
