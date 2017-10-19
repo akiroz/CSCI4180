@@ -19,7 +19,7 @@ import java.util.StringTokenizer;
 
 // Holds string value as associative array outside mapper method
 // Set up global HashMap to store list values
-public class NgramCountNew {
+public class NgramCount {
 
   // Declare global variable here
   public static LinkedList<String> list = new LinkedList<String>();
@@ -30,8 +30,8 @@ public class NgramCountNew {
     conf.setInt("N", Integer.parseInt(args[2]));
 
     Job job = new Job(conf);
-    job.setJarByClass(NgramCountNew.class);
-    job.setJobName("NgramCountNew");
+    job.setJarByClass(NgramCount.class);
+    job.setJobName("NgramCount");
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
