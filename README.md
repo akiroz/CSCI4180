@@ -1,5 +1,4 @@
-## CSCI4180 Assignment 1
-Hadoop Setup and Word Count
+## CSCI4180 Assignments
 
 ## Prerequisites 
 
