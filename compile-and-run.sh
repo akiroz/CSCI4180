@@ -7,9 +7,15 @@ CLASS="$1"
 IN="$2"
 shift; shift
 
-NAMENODE=54.153.23.91
-PORT=22
+#NAMENODE=54.215.247.186
+#PORT=22
+NAMENODE=137.189.89.214
+PORT=12231
+
+export SRC=asgn2
 
 gradle jar
-scp -i keys/vm1-hadoop -P $PORT build/libs/assg1.jar "hadoop@$NAMENODE:"
-ssh -i keys/vm1-hadoop -p $PORT "hadoop@$NAMENODE" "./hadoop-run-job.sh assg1.jar $CLASS $IN $@"
+scp -i keys/vm1-hadoop -P $PORT build/libs/CSCI4180.jar "hadoop@$NAMENODE:"
+ssh -i keys/vm1-hadoop -p $PORT "hadoop@$NAMENODE" "./hadoop-run-job.sh CSCI4180.jar $CLASS $IN $@"
+
+tput bel
