@@ -36,6 +36,7 @@ public class PDPreProcess {
         }
 
         ctx.write(node.id, node);
+        ctx.getCounter(ParallelDijkstra.COUNTER.TOTAL_NODES).increment(1);
       }
   }
 

@@ -1,35 +1,48 @@
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 
 import java.util.Map;
 import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
+
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileSystem;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Writable;
+
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
+
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
+
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 
 
 public class ParallelDijkstra {
 
+  public enum COUNTER {
+    TOTAL_NODES,
+    FOUND_NODES
+  }
+
   public static void main(String[] args) throws Exception {
+    FileSystem fs = FileSystem.get(new Configuration());
     Path inFilePath = new Path(args[0]);
-    Path outFilePath = new Path(args[1]);
-    Path tmpFilePath;
-    long rootNode = Long.parseLong(args[2]);
-    int maxIter = Integer.parseInt(args[3]);
-    int iter = 1;
+    Path outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+    long rootNode = Long.parseLong(args[1]);
+    int maxIter = Integer.parseInt(args[2]);
 
     /* =============================================
      * Pre-Process Job
@@ -41,7 +54,6 @@ public class ParallelDijkstra {
     Job preJob = Job.getInstance(preConf, "pre");
     preJob.setJarByClass(PDPreProcess.class);
     preJob.setInputFormatClass(KeyValueTextInputFormat.class);
-    preJob.setOutputFormatClass(SequenceFileOutputFormat.class);
 
     preJob.setMapperClass(PDPreProcess.Map.class);
     preJob.setMapOutputKeyClass(Text.class);
@@ -50,13 +62,14 @@ public class ParallelDijkstra {
     preJob.setReducerClass(PDPreProcess.Reduce.class);
     preJob.setOutputKeyClass(LongWritable.class);
     preJob.setOutputValueClass(PDNodeWritable.class);
+    preJob.setOutputFormatClass(SequenceFileOutputFormat.class);
 
-    tmpFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
     FileInputFormat.addInputPath(preJob, inFilePath);
-    FileOutputFormat.setOutputPath(preJob, tmpFilePath);
+    FileOutputFormat.setOutputPath(preJob, outFilePath);
     System.out.println("== Pre-Process =======================================");
     System.out.println("Input: " + inFilePath);
-    System.out.println("Output: " + tmpFilePath);
+    System.out.println("Output: " + outFilePath);
+
     if(!preJob.waitForCompletion(true)) {
       System.exit(1);
     }
@@ -64,62 +77,63 @@ public class ParallelDijkstra {
     /* ==============================================
      * Parallel Dijkstra Job
      */
-    while(iter <= maxIter) {
+    long totalNodes = preJob.getCounters().findCounter(COUNTER.TOTAL_NODES).getValue();
+    long foundNodes = 1; // root node is found.
+    int iter = 1;
+
+    while(foundNodes < totalNodes && (iter <= maxIter || maxIter == 0)) {
       Configuration bfsConf = new Configuration();
+      bfsConf.set("mapreduce.output.textoutputformat.separator", " ");
 
       Job bfsJob = Job.getInstance(bfsConf, "bfs");
       bfsJob.setJarByClass(ParallelDijkstra.class);
       bfsJob.setInputFormatClass(SequenceFileInputFormat.class);
-      bfsJob.setOutputFormatClass(SequenceFileOutputFormat.class);
 
       bfsJob.setMapperClass(ParallelDijkstra.Map.class);
-      bfsJob.setReducerClass(ParallelDijkstra.Reduce.class);
+      bfsJob.setMapOutputKeyClass(LongWritable.class);
+      bfsJob.setMapOutputValueClass(PDNodeWritable.class);
 
+      bfsJob.setReducerClass(ParallelDijkstra.Reduce.class);
       bfsJob.setOutputKeyClass(LongWritable.class);
       bfsJob.setOutputValueClass(PDNodeWritable.class);
+      bfsJob.setOutputFormatClass(SequenceFileOutputFormat.class);
+      MultipleOutputs.addNamedOutput(bfsJob, "text",
+          TextOutputFormat.class,
+          LongWritable.class,
+          LongWritable.class);
 
-      System.out.println("== BFS Depth: "+ iter +" =======================================");
-      FileInputFormat.addInputPath(bfsJob, tmpFilePath);
-      System.out.println("Input: " + tmpFilePath);
-      tmpFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
-      FileOutputFormat.setOutputPath(bfsJob, tmpFilePath);
-      System.out.println("Output: " + tmpFilePath);
+      inFilePath = outFilePath;
+      outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+      FileInputFormat.addInputPath(bfsJob, new Path(inFilePath, "part-r-00000"));
+      FileOutputFormat.setOutputPath(bfsJob, outFilePath);
+      System.out.println("== BFS Depth: "+ iter +"/"+ maxIter +" =======================================");
+      System.out.println("Input: " + inFilePath);
+      System.out.println("Output: " + outFilePath);
+
       if(!bfsJob.waitForCompletion(true)) {
         System.exit(1);
       }
-
+      
+      foundNodes += bfsJob.getCounters().findCounter(COUNTER.FOUND_NODES).getValue();
+      System.out.println("== RESULT ======================================= ");
+      System.out.println("Found " + foundNodes + "/" + totalNodes + " nodes");
       iter++;
     }
 
-    /* ===============================================
-     * Post-Process Job
+    /* ==============================================
+     * Print Output
      */
-    Configuration postConf = new Configuration();
-    postConf.set("mapreduce.output.textoutputformat.separator", " ");
-
-    Job postJob = Job.getInstance(postConf, "post");
-    postJob.setJarByClass(PDPostProcess.class);
-    postJob.setInputFormatClass(SequenceFileInputFormat.class);
-    postJob.setOutputFormatClass(TextOutputFormat.class);
-
-    postJob.setMapperClass(PDPostProcess.Map.class);
-    postJob.setReducerClass(PDPostProcess.Reduce.class);
-
-    postJob.setOutputKeyClass(Text.class);
-    postJob.setOutputValueClass(Text.class);
-
-    FileInputFormat.addInputPath(postJob, tmpFilePath);
-    FileOutputFormat.setOutputPath(postJob, outFilePath);
-    System.out.println("== Post-Process ======================================");
-    System.out.println("Input: " + tmpFilePath);
-    System.out.println("Output: " + outFilePath);
-    if(!postJob.waitForCompletion(true)) {
-      System.exit(1);
+    try(InputStream is = fs.open(new Path(outFilePath, "text-r-00000"));
+        InputStreamReader isr = new InputStreamReader(is);
+        BufferedReader br = new BufferedReader(isr)) {
+      String line;
+      while((line = br.readLine()) != null) {
+        System.out.println(line);
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
     }
 
-    /* ================================================
-     * Done!
-     */
     System.exit(0);
   }
 
@@ -143,14 +157,23 @@ public class ParallelDijkstra {
 
   public static class Reduce
       extends Reducer<LongWritable,PDNodeWritable,LongWritable,PDNodeWritable> {
+      private MultipleOutputs out;
+
+      public void setup(Context ctx) {
+        out = new MultipleOutputs(ctx);
+      }
 
       public void reduce(LongWritable id, Iterable<PDNodeWritable> nodes, Context ctx)
         throws IOException, InterruptedException {
         PDNodeWritable minNode = new PDNodeWritable();
         minNode.id = id;
+        boolean newNode = false;
         for(PDNodeWritable node : nodes) {
           if(!node.adjList.isEmpty()) {
             minNode.adjList.putAll(node.adjList);
+            if(node.dist.get() < 0) {
+              newNode = true;
+            }
           }
           long d = node.dist.get();
           long md = minNode.dist.get();
@@ -159,6 +182,17 @@ public class ParallelDijkstra {
           }
         }
         ctx.write(id, minNode);
+        if(minNode.dist.get() >= 0) {
+          out.write("text", id, minNode.dist.get());
+          if(newNode) {
+            ctx.getCounter(COUNTER.FOUND_NODES).increment(1);
+          }
+        }
+      }
+
+      public void cleanup(Context ctx)
+        throws IOException, InterruptedException {
+         out.close();
       }
   }
 
