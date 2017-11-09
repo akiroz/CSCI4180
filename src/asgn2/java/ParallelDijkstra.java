@@ -41,6 +41,7 @@ public class ParallelDijkstra {
     FileSystem fs = FileSystem.get(new Configuration());
     Path inFilePath = new Path(args[0]);
     Path outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+    Path outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
     long rootNode = Long.parseLong(args[1]);
     int maxIter = Integer.parseInt(args[2]);
 
@@ -82,8 +83,13 @@ public class ParallelDijkstra {
     int iter = 1;
 
     while(foundNodes < totalNodes && (iter <= maxIter || maxIter == 0)) {
+      inFilePath = outFilePath;
+      outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+      outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
+
       Configuration bfsConf = new Configuration();
       bfsConf.set("mapreduce.output.textoutputformat.separator", " ");
+      bfsConf.set("paralleldijkstra.output.path", outTextFilePath.toString());
 
       Job bfsJob = Job.getInstance(bfsConf, "bfs");
       bfsJob.setJarByClass(ParallelDijkstra.class);
@@ -102,13 +108,12 @@ public class ParallelDijkstra {
           LongWritable.class,
           LongWritable.class);
 
-      inFilePath = outFilePath;
-      outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
-      FileInputFormat.addInputPath(bfsJob, new Path(inFilePath, "part-r-00000"));
+      FileInputFormat.addInputPath(bfsJob, inFilePath);
       FileOutputFormat.setOutputPath(bfsJob, outFilePath);
       System.out.println("== BFS Depth: "+ iter +"/"+ maxIter +" =======================================");
       System.out.println("Input: " + inFilePath);
       System.out.println("Output: " + outFilePath);
+      System.out.println("Text Out: " + outTextFilePath);
 
       if(!bfsJob.waitForCompletion(true)) {
         System.exit(1);
@@ -123,7 +128,7 @@ public class ParallelDijkstra {
     /* ==============================================
      * Print Output
      */
-    try(InputStream is = fs.open(new Path(outFilePath, "text-r-00000"));
+    try(InputStream is = fs.open(new Path(outTextFilePath, "text-r-00000"));
         InputStreamReader isr = new InputStreamReader(is);
         BufferedReader br = new BufferedReader(isr)) {
       String line;
@@ -157,7 +162,7 @@ public class ParallelDijkstra {
 
   public static class Reduce
       extends Reducer<LongWritable,PDNodeWritable,LongWritable,PDNodeWritable> {
-      private MultipleOutputs out;
+      private MultipleOutputs<LongWritable,LongWritable> out;
 
       public void setup(Context ctx) {
         out = new MultipleOutputs(ctx);
@@ -165,6 +170,7 @@ public class ParallelDijkstra {
 
       public void reduce(LongWritable id, Iterable<PDNodeWritable> nodes, Context ctx)
         throws IOException, InterruptedException {
+        String outTextFilePath = ctx.getConfiguration().get("paralleldijkstra.output.path");
         PDNodeWritable minNode = new PDNodeWritable();
         minNode.id = id;
         boolean newNode = false;
@@ -183,7 +189,7 @@ public class ParallelDijkstra {
         }
         ctx.write(id, minNode);
         if(minNode.dist.get() >= 0) {
-          out.write("text", id, minNode.dist.get());
+          out.write("text", id, minNode.dist.get(), outTextFilePath+"/text");
           if(newNode) {
             ctx.getCounter(COUNTER.FOUND_NODES).increment(1);
           }
