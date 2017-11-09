@@ -5,29 +5,30 @@ import java.io.DataOutput;
 
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.MapWritable;
 
-public class PDNodeWritable implements Writable {
+public class PRNodeWritable implements Writable {
   public LongWritable id;
-  public LongWritable dist;
-  // LongWritable(node) -> LongWritable(weight)
+  public DoubleWritable rank;
+  // LongWritable(node) -> LongWritable(1)
   public MapWritable adjList;
 
-  public PDNodeWritable() {
+  public PRNodeWritable() {
     id = new LongWritable();
-    dist = new LongWritable(-1);
+    rank = new DoubleWritable(-1);
     adjList = new MapWritable();
   }
 
   public void write(DataOutput out) throws IOException {
     id.write(out);
-    dist.write(out);
+    rank.write(out);
     adjList.write(out);
   }
 
   public void readFields(DataInput in) throws IOException {
     id.readFields(in);
-    dist.readFields(in);
+    rank.readFields(in);
     adjList.readFields(in);
   }
 }
