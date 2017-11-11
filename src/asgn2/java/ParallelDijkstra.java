@@ -23,13 +23,22 @@ import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 
 public class ParallelDijkstra {
 
+  // Keep track for update
+  public enum UpdateCounter {
+    UPDATED
+  }
+
   public static void main(String[] args) throws Exception {
+
+
     Path inFilePath = new Path(args[0]);
     Path outFilePath = new Path(args[1]);
     Path tmpFilePath;
     long rootNode = Long.parseLong(args[2]);
     int maxIter = Integer.parseInt(args[3]);
     int iter = 1;
+
+
 
     /* =============================================
      * Pre-Process Job
@@ -64,31 +73,77 @@ public class ParallelDijkstra {
     /* ==============================================
      * Parallel Dijkstra Job
      */
-    while(iter <= maxIter) {
-      Configuration bfsConf = new Configuration();
 
-      Job bfsJob = Job.getInstance(bfsConf, "bfs");
-      bfsJob.setJarByClass(ParallelDijkstra.class);
-      bfsJob.setInputFormatClass(SequenceFileInputFormat.class);
-      bfsJob.setOutputFormatClass(SequenceFileOutputFormat.class);
+    // Number of iterations specified
+    if(maxIter!=0){
+      while(iter <= maxIter) {
+        Configuration bfsConf = new Configuration();
 
-      bfsJob.setMapperClass(ParallelDijkstra.Map.class);
-      bfsJob.setReducerClass(ParallelDijkstra.Reduce.class);
+        Job bfsJob = Job.getInstance(bfsConf, "bfs");
+        bfsJob.setJarByClass(ParallelDijkstra.class);
+        bfsJob.setInputFormatClass(SequenceFileInputFormat.class);
+        bfsJob.setOutputFormatClass(SequenceFileOutputFormat.class);
 
-      bfsJob.setOutputKeyClass(LongWritable.class);
-      bfsJob.setOutputValueClass(PDNodeWritable.class);
+        bfsJob.setMapperClass(ParallelDijkstra.Map.class);
+        bfsJob.setReducerClass(ParallelDijkstra.Reduce.class);
 
-      System.out.println("== BFS Depth: "+ iter +" =======================================");
-      FileInputFormat.addInputPath(bfsJob, tmpFilePath);
-      System.out.println("Input: " + tmpFilePath);
-      tmpFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
-      FileOutputFormat.setOutputPath(bfsJob, tmpFilePath);
-      System.out.println("Output: " + tmpFilePath);
-      if(!bfsJob.waitForCompletion(true)) {
-        System.exit(1);
+        bfsJob.setOutputKeyClass(LongWritable.class);
+        bfsJob.setOutputValueClass(PDNodeWritable.class);
+
+        System.out.println("== BFS Depth: "+ iter +" =======================================");
+        FileInputFormat.addInputPath(bfsJob, tmpFilePath);
+        System.out.println("Input: " + tmpFilePath);
+        tmpFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+        FileOutputFormat.setOutputPath(bfsJob, tmpFilePath);
+        System.out.println("Output: " + tmpFilePath);
+        if(!bfsJob.waitForCompletion(true)) {
+          System.exit(1);
+        }
+
+        iter++;
       }
+    }else{
+      // counter
+      long pre_count=-1;
+      long count = 0;
 
-      iter++;
+      // Stop when there is no more updates in reduce tasks
+      while(pre_count!=count){
+
+        // same job config
+        Configuration bfsConf = new Configuration();
+
+        Job bfsJob = Job.getInstance(bfsConf, "bfs");
+
+
+        pre_count=count;
+        // debug check
+        System.out.println("******************counter value = "+count);
+
+        bfsJob.setJarByClass(ParallelDijkstra.class);
+        bfsJob.setInputFormatClass(SequenceFileInputFormat.class);
+        bfsJob.setOutputFormatClass(SequenceFileOutputFormat.class);
+
+        bfsJob.setMapperClass(ParallelDijkstra.Map.class);
+        bfsJob.setReducerClass(ParallelDijkstra.Reduce.class);
+
+        bfsJob.setOutputKeyClass(LongWritable.class);
+        bfsJob.setOutputValueClass(PDNodeWritable.class);
+
+        System.out.println("== BFS Depth: "+ iter +" =======================================");
+        FileInputFormat.addInputPath(bfsJob, tmpFilePath);
+        System.out.println("Input: " + tmpFilePath);
+        tmpFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+        FileOutputFormat.setOutputPath(bfsJob, tmpFilePath);
+        System.out.println("Output: " + tmpFilePath);
+        if(!bfsJob.waitForCompletion(true)) {
+          System.exit(1);
+        }
+        count=bfsJob.getCounters().findCounter(ParallelDijkstra.UpdateCounter.UPDATED)
+        .getValue();
+        System.out.println("New update count = "+count+" ///////// Previous update count = "+pre_count);
+        iter++;
+      }
     }
 
     /* ===============================================
@@ -156,6 +211,8 @@ public class ParallelDijkstra {
           long md = minNode.dist.get();
           if(d >= 0 && (md < 0 || d < md)) {
             minNode.dist.set(d);
+            // There is update on the distance, increase counter by 1
+            ctx.getCounter(UpdateCounter.UPDATED).increment(1);
           }
         }
         ctx.write(id, minNode);
