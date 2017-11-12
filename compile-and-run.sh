@@ -14,8 +14,8 @@ PORT=12231
 
 export SRC=asgn2
 
-gradle jar
-scp -i keys/vm1-hadoop -P $PORT build/libs/CSCI4180.jar "hadoop@$NAMENODE:"
+[[ $SKIP ]] || gradle jar
+[[ $SKIP ]] || scp -i keys/vm1-hadoop -P $PORT build/libs/CSCI4180.jar "hadoop@$NAMENODE:"
 ssh -i keys/vm1-hadoop -p $PORT "hadoop@$NAMENODE" "./hadoop-run-job.sh CSCI4180.jar $CLASS $IN $@"
 
 tput bel

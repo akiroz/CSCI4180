@@ -34,7 +34,8 @@ public class ParallelDijkstra {
 
   public enum COUNTER {
     TOTAL_NODES,
-    FOUND_NODES
+    FOUND_NODES,
+    UPDATED_NODES
   }
 
   public static void main(String[] args) throws Exception {
@@ -80,9 +81,10 @@ public class ParallelDijkstra {
      */
     long totalNodes = preJob.getCounters().findCounter(COUNTER.TOTAL_NODES).getValue();
     long foundNodes = 1; // root node is found.
+    long updatedNodes;
     int iter = 1;
 
-    while(foundNodes < totalNodes && (iter <= maxIter || maxIter == 0)) {
+    while(iter <= maxIter || maxIter == 0) {
       inFilePath = outFilePath;
       outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
       outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
@@ -120,8 +122,12 @@ public class ParallelDijkstra {
       }
       
       foundNodes += bfsJob.getCounters().findCounter(COUNTER.FOUND_NODES).getValue();
+      updatedNodes = bfsJob.getCounters().findCounter(COUNTER.UPDATED_NODES).getValue();
       System.out.println("== RESULT ======================================= ");
-      System.out.println("Found " + foundNodes + "/" + totalNodes + " nodes");
+      System.out.println("Nodes Updated: " + updatedNodes);
+      System.out.println("Found " + foundNodes + "/" + totalNodes + " nodes\n");
+      if(updatedNodes == 0) break;
+
       iter++;
     }
 
@@ -173,13 +179,11 @@ public class ParallelDijkstra {
         String outTextFilePath = ctx.getConfiguration().get("paralleldijkstra.output.path");
         PDNodeWritable minNode = new PDNodeWritable();
         minNode.id = id;
-        boolean newNode = false;
+        long prevWeight = -1;
         for(PDNodeWritable node : nodes) {
           if(!node.adjList.isEmpty()) {
             minNode.adjList.putAll(node.adjList);
-            if(node.dist.get() < 0) {
-              newNode = true;
-            }
+            prevWeight = node.dist.get();
           }
           long d = node.dist.get();
           long md = minNode.dist.get();
@@ -190,8 +194,11 @@ public class ParallelDijkstra {
         ctx.write(id, minNode);
         if(minNode.dist.get() >= 0) {
           out.write("text", id, minNode.dist.get(), outTextFilePath+"/text");
-          if(newNode) {
+          if(prevWeight < 0) {
             ctx.getCounter(COUNTER.FOUND_NODES).increment(1);
+          }
+          if(prevWeight != minNode.dist.get()) {
+            ctx.getCounter(COUNTER.UPDATED_NODES).increment(1);
           }
         }
       }
