@@ -109,6 +109,8 @@ public class PageRank {
       FileInputFormat.addInputPath(rankJob, inFilePath);
       FileOutputFormat.setOutputPath(rankJob, outFilePath);
       System.out.println("== Page Rank Iteration: "+ iter +"/"+ maxIter +" =======================================");
+      System.out.println("Jump Factor: " + jumpFactor);
+      System.out.println("Total Nodes: " + totalNodes);
       System.out.println("Input: " + inFilePath);
       System.out.println("Output: " + outFilePath);
       System.out.println("\n");
@@ -154,6 +156,8 @@ public class PageRank {
       FileOutputFormat.setOutputPath(adjustJob, outFilePath);
       System.out.println("== Page Rank Adjust: "+ iter +"/"+ maxIter +" =======================================");
       System.out.println("Redist Mass: " + ((double) missingMass) / RANK_PRECISION);
+      System.out.println("Jump Factor: " + jumpFactor);
+      System.out.println("Total Nodes: " + totalNodes);
       System.out.println("Input: " + inFilePath);
       System.out.println("Output: " + outFilePath);
       System.out.println("Text Out: " + outTextFilePath);

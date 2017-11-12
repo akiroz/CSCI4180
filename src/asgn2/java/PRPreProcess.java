@@ -13,6 +13,14 @@ public class PRPreProcess {
 
   public static class Map
       extends Mapper<Text,Text,Text,Text> {
+
+      public void map(Text key, Text val, Context ctx)
+        throws IOException, InterruptedException {
+        
+        String[] nw = val.toString().split(" ");
+        ctx.write(new Text(nw[0]), new Text());
+        ctx.write(key, val);
+      }
   }
  
   public static class Reduce
@@ -29,8 +37,10 @@ public class PRPreProcess {
         node.id = sToLW(key.toString());
 
         for(Text v : vals) {
-          String[] nw = v.toString().split(" ");
-          node.adjList.put(sToLW(nw[0]), sToLW(nw[1]));
+          if(v.getLength() > 0) {
+            String[] nw = v.toString().split(" ");
+            node.adjList.put(sToLW(nw[0]), sToLW(nw[1]));
+          }
         }
 
         ctx.write(node.id, node);
