@@ -32,7 +32,7 @@ import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 
 
 public class PageRank {
-  public static final long RANK_PRECISION = 1_000_000_000;
+  public static final long RANK_PRECISION = 1_000_000_000_000L;
 
   public enum COUNTER {
     TOTAL_NODES,
