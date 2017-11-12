@@ -5,18 +5,17 @@ import java.io.DataOutput;
 
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.MapWritable;
 
 public class PRNodeWritable implements Writable {
   public LongWritable id;
-  public DoubleWritable rank;
+  public LongWritable rank;
   // LongWritable(node) -> LongWritable(1)
   public MapWritable adjList;
 
   public PRNodeWritable() {
     id = new LongWritable();
-    rank = new DoubleWritable(-1);
+    rank = new LongWritable(-1);
     adjList = new MapWritable();
   }
 

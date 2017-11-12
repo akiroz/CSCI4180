@@ -32,9 +32,11 @@ import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 
 
 public class PageRank {
+  public static final long RANK_PRECISION = 1_000_000_000;
 
   public enum COUNTER {
-    TOTAL_NODES
+    TOTAL_NODES,
+    MISSING_MASS
   }
 
   public static void main(String[] args) throws Exception {
@@ -70,6 +72,7 @@ public class PageRank {
     System.out.println("== Pre-Process =======================================");
     System.out.println("Input: " + inFilePath);
     System.out.println("Output: " + outFilePath);
+    System.out.println("\n");
 
     if(!preJob.waitForCompletion(true)) {
       System.exit(1);
@@ -79,17 +82,14 @@ public class PageRank {
      * Page Rank Job
      */
     long totalNodes = preJob.getCounters().findCounter(COUNTER.TOTAL_NODES).getValue();
+    long missingMass = 0;
     int iter = 1;
 
     while(iter <= maxIter) {
       inFilePath = outFilePath;
       outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
-      outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
 
       Configuration rankConf = new Configuration();
-      rankConf.set("mapreduce.output.textoutputformat.separator", " ");
-      rankConf.set("pagerank.output.path", outTextFilePath.toString());
-      rankConf.setDouble("pagerank.output.threshold", outThreshold);
       rankConf.setDouble("pagerank.jump.factor", jumpFactor);
       rankConf.setLong("pagerank.total.nodes", totalNodes);
 
@@ -105,29 +105,71 @@ public class PageRank {
       rankJob.setOutputKeyClass(LongWritable.class);
       rankJob.setOutputValueClass(PRNodeWritable.class);
       rankJob.setOutputFormatClass(SequenceFileOutputFormat.class);
-      MultipleOutputs.addNamedOutput(rankJob, "text",
-          TextOutputFormat.class,
-          LongWritable.class,
-          DoubleWritable.class);
 
       FileInputFormat.addInputPath(rankJob, inFilePath);
       FileOutputFormat.setOutputPath(rankJob, outFilePath);
-      System.out.println("== Iteration: "+ iter +"/"+ maxIter +" =======================================");
+      System.out.println("== Page Rank Iteration: "+ iter +"/"+ maxIter +" =======================================");
       System.out.println("Input: " + inFilePath);
       System.out.println("Output: " + outFilePath);
-      System.out.println("Text Out: " + outTextFilePath);
+      System.out.println("\n");
 
       if(!rankJob.waitForCompletion(true)) {
         System.exit(1);
       }
+
+      /* ==============================================
+       * Redistribute Rank Mass
+       */
+      missingMass = rankJob.getCounters().findCounter(COUNTER.MISSING_MASS).getValue();
+      inFilePath = outFilePath;
+      outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
+      outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
+
+      Configuration adjustConf = new Configuration();
+      adjustConf.set("mapreduce.output.textoutputformat.separator", " ");
+      adjustConf.set("pagerank.output.path", outTextFilePath.toString());
+      adjustConf.setDouble("pagerank.output.threshold", outThreshold);
+      adjustConf.setDouble("pagerank.jump.factor", jumpFactor);
+      adjustConf.setLong("pagerank.missing.mass", missingMass);
+      adjustConf.setLong("pagerank.total.nodes", totalNodes);
       
+      Job adjustJob = Job.getInstance(adjustConf, "adjust");
+      adjustJob.setJarByClass(PRAdjust.class);
+      adjustJob.setInputFormatClass(SequenceFileInputFormat.class);
+
+      adjustJob.setMapperClass(PRAdjust.Map.class);
+      adjustJob.setMapOutputKeyClass(LongWritable.class);
+      adjustJob.setMapOutputValueClass(PRNodeWritable.class);
+
+      adjustJob.setReducerClass(PRAdjust.Reduce.class);
+      adjustJob.setOutputKeyClass(LongWritable.class);
+      adjustJob.setOutputValueClass(PRNodeWritable.class);
+      adjustJob.setOutputFormatClass(SequenceFileOutputFormat.class);
+      MultipleOutputs.addNamedOutput(adjustJob, "text",
+          TextOutputFormat.class,
+          LongWritable.class,
+          DoubleWritable.class);
+
+      FileInputFormat.addInputPath(adjustJob, inFilePath);
+      FileOutputFormat.setOutputPath(adjustJob, outFilePath);
+      System.out.println("== Page Rank Adjust: "+ iter +"/"+ maxIter +" =======================================");
+      System.out.println("Redist Mass: " + ((double) missingMass) / RANK_PRECISION);
+      System.out.println("Input: " + inFilePath);
+      System.out.println("Output: " + outFilePath);
+      System.out.println("Text Out: " + outTextFilePath);
+      System.out.println("\n");
+
+      if(!adjustJob.waitForCompletion(true)) {
+        System.exit(1);
+      }
+
       iter++;
     }
 
     /* ==============================================
      * Print Output
      */
-    try(InputStream is = fs.open(new Path(outTextFilePath, "text-r-00000"));
+    try(InputStream is = fs.open(new Path(outTextFilePath, "text-m-00000"));
         InputStreamReader isr = new InputStreamReader(is);
         BufferedReader br = new BufferedReader(isr)) {
       String line;
@@ -149,13 +191,16 @@ public class PageRank {
         Configuration cfg = ctx.getConfiguration();
         Long totalNodes = cfg.getLong("pagerank.total.nodes", 1);
         if(node.rank.get() < 0) {
-          node.rank.set(1.0 / totalNodes);
+          node.rank.set(RANK_PRECISION / totalNodes);
         }
         for(java.util.Map.Entry<Writable,Writable> edge : node.adjList.entrySet()) {
           PRNodeWritable neighbour = new PRNodeWritable();
           neighbour.id = (LongWritable) edge.getKey();
           neighbour.rank.set(node.rank.get() / node.adjList.size());
           ctx.write(neighbour.id, neighbour);
+        }
+        if(node.adjList.isEmpty()) {
+          ctx.getCounter(COUNTER.MISSING_MASS).increment(node.rank.get());
         }
         node.rank.set(0); // don't pass previous rank
         ctx.write(id, node);
@@ -164,43 +209,27 @@ public class PageRank {
 
   public static class Reduce
       extends Reducer<LongWritable,PRNodeWritable,LongWritable,PRNodeWritable> {
-      private MultipleOutputs<LongWritable,DoubleWritable> out;
-
-      public void setup(Context ctx) {
-        out = new MultipleOutputs(ctx);
-      }
 
       public void reduce(LongWritable id, Iterable<PRNodeWritable> nodes, Context ctx)
         throws IOException, InterruptedException {
         Configuration cfg = ctx.getConfiguration();
-        String outTextFilePath = cfg.get("pagerank.output.path");
         Double jumpFactor = cfg.getDouble("pagerank.jump.factor", 0);
-        Double outThreshold = cfg.getDouble("pagerank.output.threshold", 0);
         Long totalNodes = cfg.getLong("pagerank.total.nodes", 1);
         PRNodeWritable aggrNode = new PRNodeWritable();
         aggrNode.id = id;
 
-        double rank = 0;
+        long rank = 0;
         for(PRNodeWritable node : nodes) {
-          //out.write("text", id, node.rank, outTextFilePath+"/text");
           if(!node.adjList.isEmpty()) {
             aggrNode.adjList.putAll(node.adjList);
           }
           rank += node.rank.get();
         }
-        rank *= (1-jumpFactor);
-        rank += jumpFactor*(1/totalNodes);
+        rank *= (1 - jumpFactor);
+        rank += jumpFactor * (RANK_PRECISION / totalNodes);
         aggrNode.rank.set(rank);
 
         ctx.write(id, aggrNode);
-        if(aggrNode.rank.get() >= outThreshold) {
-          out.write("text", id, aggrNode.rank, outTextFilePath+"/text");
-        }
-      }
-
-      public void cleanup(Context ctx)
-        throws IOException, InterruptedException {
-         out.close();
       }
   }
 
