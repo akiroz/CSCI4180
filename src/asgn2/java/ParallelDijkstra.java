@@ -139,6 +139,7 @@ public class ParallelDijkstra {
 
       public void map(LongWritable id, PDNodeWritable node, Context ctx)
         throws IOException, InterruptedException {
+        node.isPrev.set(true);
         ctx.write(id, node);
         if(node.dist.get() >= 0) {
           for(java.util.Map.Entry<Writable,Writable> edge : node.adjList.entrySet()) {
@@ -169,6 +170,8 @@ public class ParallelDijkstra {
         for(PDNodeWritable node : nodes) {
           if(!node.adjList.isEmpty()) {
             minNode.adjList.putAll(node.adjList);
+          }
+          if(node.isPrev.get()) {
             prevWeight = node.dist.get();
           }
           long d = node.dist.get();
