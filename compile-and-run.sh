@@ -16,6 +16,6 @@ export SRC=asgn2
 
 [[ $SKIP ]] || gradle jar
 [[ $SKIP ]] || scp -i keys/vm1-hadoop -P $PORT build/libs/CSCI4180.jar "hadoop@$NAMENODE:"
-ssh -i keys/vm1-hadoop -p $PORT "hadoop@$NAMENODE" "./hadoop-run-job.sh CSCI4180.jar $CLASS $IN $@"
+ssh -i keys/vm1-hadoop -p $PORT "hadoop@$NAMENODE" "export DEBUG=1; ./hadoop-run-job.sh CSCI4180.jar $CLASS $IN $@"
 
 tput bel

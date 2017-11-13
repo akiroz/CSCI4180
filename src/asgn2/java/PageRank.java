@@ -173,18 +173,12 @@ public class PageRank {
     /* ==============================================
      * Print Output
      */
-    try(InputStream is = fs.open(new Path(outTextFilePath, "text-m-00000"));
-        InputStreamReader isr = new InputStreamReader(is);
-        BufferedReader br = new BufferedReader(isr)) {
-      String line;
-      while((line = br.readLine()) != null) {
+    if(System.getenv().containsKey("DEBUG")) {
+      InputStream is = fs.open(new Path(outTextFilePath, "text-m-00000"));
+      new BufferedReader(new InputStreamReader(is)).lines().forEach(line -> {
         System.out.println(line);
-      }
-    } catch (Exception e) {
-      e.printStackTrace();
+      });
     }
-
-    System.exit(0);
   }
 
   public static class Map

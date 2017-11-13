@@ -33,8 +33,6 @@ import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 public class ParallelDijkstra {
 
   public enum COUNTER {
-    TOTAL_NODES,
-    FOUND_NODES,
     UPDATED_NODES
   }
 
@@ -79,8 +77,6 @@ public class ParallelDijkstra {
     /* ==============================================
      * Parallel Dijkstra Job
      */
-    long totalNodes = preJob.getCounters().findCounter(COUNTER.TOTAL_NODES).getValue();
-    long foundNodes = 1; // root node is found.
     long updatedNodes;
     int iter = 1;
 
@@ -121,11 +117,7 @@ public class ParallelDijkstra {
         System.exit(1);
       }
       
-      foundNodes += bfsJob.getCounters().findCounter(COUNTER.FOUND_NODES).getValue();
       updatedNodes = bfsJob.getCounters().findCounter(COUNTER.UPDATED_NODES).getValue();
-      System.out.println("== RESULT ======================================= ");
-      System.out.println("Nodes Updated: " + updatedNodes);
-      System.out.println("Found " + foundNodes + "/" + totalNodes + " nodes\n");
       if(updatedNodes == 0) break;
 
       iter++;
@@ -134,18 +126,12 @@ public class ParallelDijkstra {
     /* ==============================================
      * Print Output
      */
-    try(InputStream is = fs.open(new Path(outTextFilePath, "text-r-00000"));
-        InputStreamReader isr = new InputStreamReader(is);
-        BufferedReader br = new BufferedReader(isr)) {
-      String line;
-      while((line = br.readLine()) != null) {
+    if(System.getenv().containsKey("DEBUG")) {
+      InputStream is = fs.open(new Path(outTextFilePath, "text-r-00000"));
+      new BufferedReader(new InputStreamReader(is)).lines().forEach(line -> {
         System.out.println(line);
-      }
-    } catch (Exception e) {
-      e.printStackTrace();
+      });
     }
-
-    System.exit(0);
   }
 
   public static class Map
@@ -194,9 +180,6 @@ public class ParallelDijkstra {
         ctx.write(id, minNode);
         if(minNode.dist.get() >= 0) {
           out.write("text", id, minNode.dist.get(), outTextFilePath+"/text");
-          if(prevWeight < 0) {
-            ctx.getCounter(COUNTER.FOUND_NODES).increment(1);
-          }
           if(prevWeight != minNode.dist.get()) {
             ctx.getCounter(COUNTER.UPDATED_NODES).increment(1);
           }
