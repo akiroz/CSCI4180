@@ -44,9 +44,11 @@ public class PageRank {
     Path inFilePath = new Path(args[0]);
     Path outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
     Path outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
-    double jumpFactor = Double.parseDouble(args[1]);
-    double outThreshold = Double.parseDouble(args[2]);
-    int maxIter = Integer.parseInt(args[3]);
+    // Changed argument order according to tutorial's spec
+    int maxIter = Integer.parseInt(args[1]);
+    double jumpFactor = Double.parseDouble(args[2]);
+    double outThreshold = Double.parseDouble(args[3]);
+
 
     /* =============================================
      * Pre-Process Job
@@ -134,7 +136,7 @@ public class PageRank {
       adjustConf.setDouble("pagerank.jump.factor", jumpFactor);
       adjustConf.setLong("pagerank.missing.mass", missingMass);
       adjustConf.setLong("pagerank.total.nodes", totalNodes);
-      
+
       Job adjustJob = Job.getInstance(adjustConf, "adjust");
       adjustJob.setJarByClass(PRAdjust.class);
       adjustJob.setInputFormatClass(SequenceFileInputFormat.class);
