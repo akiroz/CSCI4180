@@ -91,7 +91,14 @@ public class PageRank {
       inFilePath = outFilePath;
       outFilePath = new Path("/tmp/" + UUID.randomUUID().toString());
 
+      // Added for Check
+      outTextFilePath = new Path("/out/" + UUID.randomUUID().toString());
+
       Configuration rankConf = new Configuration();
+      // DEBUG
+      rankConf.set("mapreduce.output.textoutputformat.separator", " ");
+      rankConf.set("pagerank.output.path", outTextFilePath.toString());
+
       rankConf.setDouble("pagerank.jump.factor", jumpFactor);
       rankConf.setLong("pagerank.total.nodes", totalNodes);
 
@@ -108,6 +115,14 @@ public class PageRank {
       rankJob.setOutputValueClass(PRNodeWritable.class);
       rankJob.setOutputFormatClass(SequenceFileOutputFormat.class);
 
+      //DEBUG Check
+      /*
+      MultipleOutputs.addNamedOutput(rankJob, "text",
+          TextOutputFormat.class,
+          LongWritable.class,
+          DoubleWritable.class);
+          */
+
       FileInputFormat.addInputPath(rankJob, inFilePath);
       FileOutputFormat.setOutputPath(rankJob, outFilePath);
       System.out.println("== Page Rank Iteration: "+ iter +"/"+ maxIter +" =======================================");
@@ -120,6 +135,16 @@ public class PageRank {
       if(!rankJob.waitForCompletion(true)) {
         System.exit(1);
       }
+
+      // Intermediate output for debugging
+      /*
+      if(System.getenv().containsKey("DEBUG")) {
+        InputStream is = fs.open(new Path(outTextFilePath, "text-r-00000"));
+        new BufferedReader(new InputStreamReader(is)).lines().forEach(line -> {
+          System.out.println(line);
+        });
+      }
+      */
 
       /* ==============================================
        * Redistribute Rank Mass
@@ -210,9 +235,19 @@ public class PageRank {
   public static class Reduce
       extends Reducer<LongWritable,PRNodeWritable,LongWritable,PRNodeWritable> {
 
+      // Added DEBUG Check
+      //private MultipleOutputs<LongWritable,DoubleWritable> out;
+
+      //public void setup(Context ctx) {
+      //  out = new MultipleOutputs(ctx);
+      //}
+
       public void reduce(LongWritable id, Iterable<PRNodeWritable> nodes, Context ctx)
         throws IOException, InterruptedException {
         Configuration cfg = ctx.getConfiguration();
+        //DEBUG
+        String outTextFilePath = cfg.get("pagerank.output.path");
+
         Double jumpFactor = cfg.getDouble("pagerank.jump.factor", 0);
         Long totalNodes = cfg.getLong("pagerank.total.nodes", 1);
         PRNodeWritable aggrNode = new PRNodeWritable();
@@ -225,11 +260,14 @@ public class PageRank {
           }
           rank += node.rank.get();
         }
-        rank *= (1 - jumpFactor);
-        rank += jumpFactor * (RANK_PRECISION / totalNodes);
+        //rank *= (1 - jumpFactor);
+        //rank += jumpFactor * (RANK_PRECISION / totalNodes);
         aggrNode.rank.set(rank);
 
         ctx.write(id, aggrNode);
+
+        //double interRank = ((double) aggrNode.rank.get()) / PageRank.RANK_PRECISION;
+        //out.write("text", id, new DoubleWritable(interRank), outTextFilePath+"/text");
       }
   }
 

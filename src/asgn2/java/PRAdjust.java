@@ -14,6 +14,7 @@ public class PRAdjust {
 
   public static class Map
       extends Mapper<LongWritable,PRNodeWritable,LongWritable,PRNodeWritable> {
+
       private MultipleOutputs<LongWritable,DoubleWritable> out;
 
       public void setup(Context ctx) {
@@ -30,9 +31,10 @@ public class PRAdjust {
         Long totalNodes = cfg.getLong("pagerank.total.nodes", 1);
 
         long rank = node.rank.get();
-        rank += missingMass / totalNodes;
-        rank *= 1 - jumpFactor;
-        rank += jumpFactor * (1.0 / totalNodes);
+        rank += (missingMass / totalNodes);
+        rank *= (1 - jumpFactor);
+        // Precision
+        rank += (jumpFactor * (1.0 / totalNodes)*PageRank.RANK_PRECISION);
         node.rank.set(rank);
 
         ctx.write(id, node);
@@ -47,10 +49,49 @@ public class PRAdjust {
         throws IOException, InterruptedException {
          out.close();
       }
+
   }
- 
+
   public static class Reduce
       extends Reducer<LongWritable,PRNodeWritable,LongWritable,PRNodeWritable> {
+/*
+        // Try doing in reducer
+        private MultipleOutputs<LongWritable,DoubleWritable> out;
+
+        public void setup(Context ctx) {
+          out = new MultipleOutputs(ctx);
+        }
+
+        public void reduce(LongWritable id, PRNodeWritable node, Context ctx)
+          throws IOException, InterruptedException {
+          Configuration cfg = ctx.getConfiguration();
+          String outTextFilePath = cfg.get("pagerank.output.path");
+          Double jumpFactor = cfg.getDouble("pagerank.jump.factor", 0);
+          Double outThreshold = cfg.getDouble("pagerank.output.threshold", 0);
+          Long missingMass = cfg.getLong("pagerank.missing.mass", 0);
+          Long totalNodes = cfg.getLong("pagerank.total.nodes", 1);
+
+          long rank = node.rank.get();
+          rank += (missingMass / totalNodes);
+          rank *= (1 - jumpFactor);
+          rank += (jumpFactor * (1.0 / totalNodes));
+          node.rank.set(rank);
+          out.write("text", rank, new DoubleWritable((double)(node.rank.get()/PageRank.RANK_PRECISION)), outTextFilePath+"/text");
+
+
+          ctx.write(id, node);
+
+          double outRank = ((double) node.rank.get()) / PageRank.RANK_PRECISION;
+          if(outRank >= outThreshold) {
+            out.write("text", id, new DoubleWritable(outRank), outTextFilePath+"/text");
+          }
+        }
+
+        public void cleanup(Context ctx)
+          throws IOException, InterruptedException {
+           out.close();
+        }
+*/
   }
 
 }
