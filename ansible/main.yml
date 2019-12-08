@@ -1,0 +1,109 @@
+- hosts: all
+  become: true
+  tasks:
+    - name: Set VM hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+    - name: Build /etc/hosts file
+      lineinfile:
+        dest: /etc/hosts
+        regexp: '.*{{ item }}$'
+        line: "{{ hostvars[item].ansible_default_ipv4.address }} {{item}}"
+      with_items: "{{ groups['all'] }}"
+    - name: Create hadoop user
+      user:
+        name: hadoop
+        groups:
+          - sudo
+        shell: /bin/bash
+        generate_ssh_key: yes
+    - name: Install hadoop user private key
+      copy:
+        src: "../keys/{{ inventory_hostname }}-hadoop"
+        dest: /home/hadoop/.ssh/id_rsa
+        mode: 0600
+        owner: hadoop
+    - name: Install hadoop user public key
+      copy:
+        src: "../keys/{{ inventory_hostname }}-hadoop.pub"
+        dest: /home/hadoop/.ssh/id_rsa.pub
+        owner: hadoop
+    - name: Add public keys to authorized_keys
+      authorized_key:
+        user: hadoop
+        state: present
+        key: "{{ lookup('file', '../keys/'+item+'-hadoop.pub') }}"
+      with_items: "{{ groups['all'] }}"
+    - name: Disable host key checking
+      copy:
+        src: "files/hadoop-ssh-config"
+        dest: /home/hadoop/.ssh/config
+        owner: hadoop
+- hosts: all
+  remote_user: hadoop
+  vars:
+    proxy_env:
+      http_proxy: http://proxy.cse.cuhk.edu.hk:8000
+      https_proxy: http://proxy.cse.cuhk.edu.hk:8000
+  become: true
+  environment: "{{proxy_env}}"
+  tasks:
+    - name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules, required by ansible"
+      raw: apt-get install python-minimal aptitude -y
+    - name: Add OpenJDK PPA
+      apt_repository:
+        repo: "ppa:openjdk-r/ppa"
+    - name: Perform system upgrade
+      apt:
+        upgrade: yes
+        update_cache: yes
+    - name: Install Java
+      apt:
+        name: openjdk-8-jdk
+    - name: Download Hadoop
+      unarchive:
+        src: https://archive.apache.org/dist/hadoop/common/hadoop-2.7.3/hadoop-2.7.3.tar.gz
+        dest: /home/hadoop
+        remote_src: yes
+        owner: hadoop
+        group: hadoop
+    - name: Upload hadoop config
+      copy:
+        src: "{{ item }}"
+        dest: /home/hadoop/hadoop-2.7.3/etc/hadoop/
+        owner: hadoop
+        group: hadoop
+      with_fileglob:
+        - "files/csci4180_hadoop_conf/*"
+    - name: Export JAVA_HOME
+      lineinfile:
+        dest: /home/hadoop/.bashrc
+        regexp: "export JAVA_HOME="
+        line: "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64"
+    - name: Export HADOOP_HOME
+      lineinfile:
+        dest: /home/hadoop/.bashrc
+        regexp: "export HADOOP_HOME="
+        line: "export HADOOP_HOME=/home/hadoop/hadoop-2.7.3"
+    - name: Export HADOOP_CLASSPATH
+      lineinfile:
+        dest: /home/hadoop/.bashrc
+        regexp: "export HADOOP_CLASSPATH="
+        line: "export HADOOP_CLASSPATH=${JAVA_HOME}/lib/tools.jar"
+    - name: Export PATH
+      lineinfile:
+        dest: /home/hadoop/.bashrc
+        regexp: "export PATH="
+        line: "export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+    - name: Upload hadoop-init.sh
+      copy:
+        src: files/hadoop-init.sh
+        dest: /home/hadoop/
+        owner: hadoop
+        mode: 0744
+    - name: Upload hadoop-run-job.sh
+      copy:
+        src: files/hadoop-run-job.sh
+        dest: /home/hadoop/
+        owner: hadoop
+        mode: 0744

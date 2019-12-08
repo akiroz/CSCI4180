@@ -1,0 +1,29 @@
+plugins {
+  id "org.gradle.java"
+  id "com.scuilion.syntastic" version "0.3.8"
+  id 'com.github.johnrengelman.shadow' version '2.0.1'
+}
+
+apply plugin: 'java'
+apply plugin: 'application'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+mainClassName = 'MyDedup'
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  compile 'com.microsoft.azure:azure-storage:6.1.0'
+  compile 'com.amazonaws:aws-java-sdk-s3:1.11.235'
+}
+
+sourceSets {
+  main {
+    java {
+      srcDir "src/asgn3/java"
+    }
+  }
+}
+
